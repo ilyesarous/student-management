@@ -8,6 +8,20 @@ pipeline {
             }
         }
 
+        stage('Start MySQL for Tests') {
+            steps {
+                sh '''
+                    docker run -d --name mysql-test \
+                      -e MYSQL_ROOT_USERNAME=root \
+                      -e MYSQL_ROOT_PASSWORD= \
+                      -e MYSQL_DATABASE=studentdb \
+                      -p 3306:3306 \
+                      mysql:8.0
+                '''
+                sleep(time:30, unit:"SECONDS") // wait for MySQL to boot
+            }
+        }
+
         stage('Build') {
             steps {
                 sh 'mvn clean install -DskipTests'
