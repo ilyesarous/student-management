@@ -2,10 +2,8 @@ pipeline {
     agent any
 
     environment {
-        MYSQL_ROOT_PASSWORD = ""
+        MYSQL_ROOT_PASSWORD = "root"
         MYSQL_DATABASE = "studentdb"
-        MYSQL_USER = "root"
-        MYSQL_PASSWORD = ""
     }
 
     stages {
@@ -18,18 +16,26 @@ pipeline {
         stage('Start MySQL for Tests') {
             steps {
                 sh '''
+                    echo "🗑️ Cleaning up old MySQL container if it exists..."
                     docker rm -f mysql-test || true
+
+                    echo "🐬 Starting new MySQL container..."
                     docker run -d --name mysql-test \
                       -e MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD \
                       -e MYSQL_DATABASE=$MYSQL_DATABASE \
-                      -e MYSQL_USER=$MYSQL_USER \
-                      -e MYSQL_PASSWORD=$MYSQL_PASSWORD \
                       -p 3306:3306 \
-                      mysql:8.0 \
-                      --default-authentication-plugin=mysql_native_password
+                      mysql:8.0 --default-authentication-plugin=mysql_native_password
+
+                    echo "⏳ Waiting for MySQL to be ready..."
+                    for i in {1..30}; do
+                      if docker exec mysql-test mysqladmin ping -uroot -p$MYSQL_ROOT_PASSWORD --silent; then
+                        echo "✅ MySQL is up!"
+                        break
+                      fi
+                      echo "Still waiting... ($i/30)"
+                      sleep 2
+                    done
                 '''
-                echo "⏳ Waiting for MySQL to be ready..."
-                sleep(time:30, unit:"SECONDS")
             }
         }
 
@@ -64,7 +70,7 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                echo "🚀 Deploy stage here (e.g., copy JAR to server, run with java -jar)"
+                echo "🚀 Deploy stage here (copy JAR to server, run with java -jar, etc.)"
             }
         }
     }
