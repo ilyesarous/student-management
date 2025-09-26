@@ -2,50 +2,23 @@ pipeline {
     agent any
 
     environment {
-        MYSQL_ROOT_PASSWORD = "root"
-        MYSQL_DATABASE = "studentdb"
+        COMPOSE_PROJECT_NAME = "student-ci"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/ilyesarous/student-management.git/'
+                git branch: 'main', url: 'https://github.com/ilyesarous/student-management.git'
             }
         }
 
-        stage('Start MySQL for Tests') {
+        stage('Build with Maven') {
             steps {
-                sh '''
-                    echo "🗑️ Cleaning up old MySQL container if it exists..."
-                    docker rm -f mysql-test || true
-
-                    echo "🐬 Starting new MySQL container..."
-                    docker run -d --name mysql-test \
-                      -e MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD \
-                      -e MYSQL_DATABASE=$MYSQL_DATABASE \
-                      -p 3306:3306 \
-                      mysql:8.0 --default-authentication-plugin=mysql_native_password
-
-                    echo "⏳ Waiting for MySQL to be ready..."
-                    for i in {1..30}; do
-                      if docker exec mysql-test mysqladmin ping -uroot -p$MYSQL_ROOT_PASSWORD --silent; then
-                        echo "✅ MySQL is up!"
-                        break
-                      fi
-                      echo "Still waiting... ($i/30)"
-                      sleep 2
-                    done
-                '''
+                sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('Build') {
-            steps {
-                sh 'mvn clean install -DskipTests'
-            }
-        }
-
-        stage('Test') {
+        stage('Run Tests') {
             steps {
                 sh 'mvn test'
             }
@@ -56,29 +29,43 @@ pipeline {
             }
         }
 
-        stage('Package') {
+        stage('Start Services with Docker Compose') {
             steps {
-                sh 'mvn package -DskipTests'
+                script {
+                    sh 'docker-compose down || true'
+                    sh 'docker-compose up -d --build'
+                    sh 'sleep 30' // wait for MySQL to be ready
+                }
             }
         }
 
-        stage('Archive Artifact') {
+        stage('Smoke Test') {
             steps {
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                script {
+                    // Check app container logs
+                    sh 'docker-compose logs app || true'
+
+                    // Example: check if app endpoint is up
+                    sh 'curl -f http://localhost:8080/actuator/health || true'
+                }
             }
         }
 
-        stage('Deploy') {
-            steps {
-                echo "🚀 Deploy stage here (copy JAR to server, run with java -jar, etc.)"
-            }
-        }
+        // Optional stage: Push image to DockerHub
+        // stage('Push Image') {
+        //     steps {
+        //         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+        //             sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
+        //             sh "docker-compose push"
+        //         }
+        //     }
+        // }
     }
 
     post {
         always {
-            echo "🧹 Cleaning up MySQL container"
-            sh 'docker rm -f mysql-test || true'
+            echo "Cleaning up..."
+            sh 'docker-compose down || true'
         }
     }
 }
