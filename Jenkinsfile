@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        COMPOSE_PROJECT_NAME = "student-ci"
+        IMAGE_NAME = "student-app"
+        IMAGE_TAG = "latest"
     }
 
     stages {
@@ -12,13 +13,33 @@ pipeline {
             }
         }
 
-        stage('Build with Maven') {
+        stage('Start MySQL for Tests') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                script {
+                    // Stop old MySQL container if exists
+                    sh 'docker rm -f mysql-test || true'
+
+                    // Run fresh MySQL container
+                    sh '''
+                        docker run -d --name mysql-test \
+                          -e MYSQL_ROOT_PASSWORD=root \
+                          -e MYSQL_DATABASE=studentdb \
+                          -p 3306:3306 \
+                          mysql:8.0 --default-authentication-plugin=mysql_native_password
+                    '''
+                    // wait for DB to boot
+                    sh 'sleep 25'
+                }
             }
         }
 
-        stage('Run Tests') {
+        stage('Build with Maven') {
+            steps {
+                sh 'mvn clean install -DskipTests'
+            }
+        }
+
+        stage('Run Tests (with MySQL)') {
             steps {
                 sh 'mvn test'
             }
@@ -29,43 +50,17 @@ pipeline {
             }
         }
 
-        stage('Start Services with Docker Compose') {
+        stage('Build Docker Image') {
             steps {
-                script {
-                    sh 'docker-compose down || true'
-                    sh 'docker-compose up -d --build'
-                    sh 'sleep 30' // wait for MySQL to be ready
-                }
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
             }
         }
-
-        stage('Smoke Test') {
-            steps {
-                script {
-                    // Check app container logs
-                    sh 'docker-compose logs app || true'
-
-                    // Example: check if app endpoint is up
-                    sh 'curl -f http://localhost:8080/actuator/health || true'
-                }
-            }
-        }
-
-        // Optional stage: Push image to DockerHub
-        // stage('Push Image') {
-        //     steps {
-        //         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-        //             sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-        //             sh "docker-compose push"
-        //         }
-        //     }
-        // }
     }
 
     post {
         always {
             echo "Cleaning up..."
-            sh 'docker-compose down || true'
+            sh 'docker rm -f mysql-test || true'
         }
     }
 }
