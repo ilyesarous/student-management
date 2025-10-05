@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME = "student-app"
         IMAGE_TAG = "latest"
         SONAR_PROJECT_KEY = "student-app"
-        SONAR_HOST_URL = "http://your-sonarqube-server:9000"
+        SONAR_HOST_URL = "http://10.0.1.18:9000"
     }
 
     stages {
