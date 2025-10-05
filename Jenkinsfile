@@ -8,10 +8,6 @@ pipeline {
         SONAR_HOST_URL = "http://your-sonarqube-server:9000"
     }
 
-    tools {
-        maven 'Maven 3.9.0'  // replace with your Jenkins Maven installation name
-    }
-
     stages {
         stage('Checkout') {
             steps {
