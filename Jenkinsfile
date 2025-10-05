@@ -4,12 +4,12 @@ pipeline {
     environment {
         IMAGE_NAME = "student-app"
         IMAGE_TAG = "latest"
-        SONAR_PROJECT_KEY = "student-app"   // change as needed
-        SONAR_HOST_URL = "http://10.0.1.18:9000" // change to your SonarQube URL
+        SONAR_PROJECT_KEY = "student-app"
+        SONAR_HOST_URL = "http://your-sonarqube-server:9000"
     }
 
     tools {
-        sonarQubeScanner 'sonar1'
+        maven 'Maven 3.9.0'  // replace with your Jenkins Maven installation name
     }
 
     stages {
@@ -54,7 +54,7 @@ pipeline {
 
         stage('SonarQube Analysis') {
             environment {
-                SONAR_TOKEN = credentials('sonarqube-token') // Jenkins credential ID
+                SONAR_TOKEN = credentials('sonarqube-token')
             }
             steps {
                 sh """
