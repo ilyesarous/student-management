@@ -4,6 +4,12 @@ pipeline {
     environment {
         IMAGE_NAME = "student-app"
         IMAGE_TAG = "latest"
+        SONAR_PROJECT_KEY = "student-app"   // change as needed
+        SONAR_HOST_URL = "http://10.0.1.18:9000" // change to your SonarQube URL
+    }
+
+    tools {
+        sonarQubeScanner 'sonar1'
     }
 
     stages {
@@ -16,10 +22,7 @@ pipeline {
         stage('Start MySQL for Tests') {
             steps {
                 script {
-                    // Stop old MySQL container if exists
                     sh 'docker rm -f mysql-test || true'
-
-                    // Run fresh MySQL container
                     sh '''
                         docker run -d --name mysql-test \
                           -e MYSQL_ROOT_PASSWORD=root \
@@ -27,7 +30,6 @@ pipeline {
                           -p 3306:3306 \
                           mysql:8.0 --default-authentication-plugin=mysql_native_password
                     '''
-                    // wait for DB to boot
                     sh 'sleep 25'
                 }
             }
@@ -47,6 +49,20 @@ pipeline {
                 always {
                     junit 'target/surefire-reports/*.xml'
                 }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            environment {
+                SONAR_TOKEN = credentials('sonarqube-token') // Jenkins credential ID
+            }
+            steps {
+                sh """
+                    mvn sonar:sonar \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.host.url=${SONAR_HOST_URL} \
+                        -Dsonar.login=${SONAR_TOKEN}
+                """
             }
         }
 
