@@ -6,6 +6,7 @@ pipeline {
         IMAGE_TAG = "latest"
         SONAR_PROJECT_KEY = "student-app"
         SONAR_HOST_URL = "http://10.0.1.18:9000"
+        DOCKERHUB_REPO = "ilyesarous/student-app"
     }
 
     stages {
@@ -64,7 +65,19 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                sh "docker build -t ${DOCKERHUB_REPO}:${IMAGE_TAG} ."
+            }
+        }
+
+        stage('Push Docker Image to Docker Hub') {
+            environment {
+                DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
+            }
+            steps {
+                script {
+                    sh "echo ${DOCKERHUB_CREDENTIALS_PSW} | docker login -u ${DOCKERHUB_CREDENTIALS_USR} --password-stdin"
+                    sh "docker push ${DOCKERHUB_REPO}:${IMAGE_TAG}"
+                }
             }
         }
     }
